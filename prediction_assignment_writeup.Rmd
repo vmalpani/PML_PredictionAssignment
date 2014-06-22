@@ -1,22 +1,93 @@
 ---
 title: "Practical Machine Learning - Prediction Assignment Writeup"
 author: "Vaibhav Malpani"
-date: "June 22, 2014"
+date: "June 20, 2014"
 output: html_document
 ---
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
+## Introduction
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, we use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The goal of your project is to predict the manner in which they did the exercise. We use a random forest model to predict 20 different test cases.
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(cache=TRUE)
+``` 
+## Basic Setup
+Load the required packages
 ```{r}
-summary(cars)
+library(caret)
+library(randomForest)
+```
+Read the dataset
+```{r}
+training_data = read.csv('./data/pml-training.csv')
+testing_data = read.csv('./data/pml-testing.csv')
+```
+## Training, Validation and Test Set
+Partition the training set into a small validation set for measuring cross-validation accuracy
+```{r}
+set.seed(1234)
+train_idx <- createDataPartition(training_data$classe,p=0.75,list=FALSE)
+training_set <- training_data[train_idx,]
+validation_set <- training_data[-train_idx,]
+```
+## Preprocessing
+If the frequency ratio is less than a pre-specified threshold and the unique value percentage is less than a threshold, we consider a predictor to be near zero-variance. Eliminate columns with near zero variance and keep only those columns with numeric values.
+```{r}
+nzv_cols <- nearZeroVar(training_set)
+training_set <- training_set[-nzv_cols]
+validation_set <- validation_set[-nzv_cols]
+testing_set <- testing_data[-nzv_cols]
+
+numeric_cols <- which(lapply(training_set,class) %in% c('numeric'))
+```
+Fill in missing values using **knnImpute**. K nearest neighbors are found in the training set and the value for the predictor is imputed using these values. This generates our preprocessing model. Also, we simply replace 'NA' with 0.
+```{r}
+preProcessingModel <- preProcess(training_set[,numeric_cols], method=c('knnImpute'))
+
+preProcessedTraining <- cbind(training_set$classe, predict(preProcessingModel,training_set[,numeric_cols]))
+names(preProcessedTraining)[1] <- 'classe'
+preProcessedTraining[is.na(preProcessedTraining)] <- 0
+
+preProcessedValidation <- cbind(validation_set$classe, predict(preProcessingModel,validation_set[,numeric_cols]))
+names(preProcessedValidation)[1] <- 'classe'
+preProcessedValidation[is.na(preProcessedValidation)] <- 0
+
+preProcessedTesting <- cbind(testing_set$problem_id, predict(preProcessingModel,testing_set[,numeric_cols]))
+preProcessedTesting[is.na(preProcessedTesting)] <- 0
+```
+## Training
+Different algorithms were tried but finally we fixed upon training a random forest model.
+```{r}
+randomForestModel <- randomForest(classe~., preProcessedTraining)
+```
+## Predictions
+**In Sample Accuracy**: Predicting and comparing training set class labels
+```{r}
+trainingPredictions <- predict(randomForestModel, preProcessedTraining)
+print(mean(trainingPredictions == preProcessedTraining$classe))
+```
+**Out of Sample Accuracy**: Predicting and comparing validation set class labels
+```{r}
+validationPredictions <- predict(randomForestModel, preProcessedValidation)
+print(mean(validationPredictions == preProcessedValidation$classe))
+```
+**Test Set Predictions**
+```{r}
+testingPredictions <- predict(randomForestModel, preProcessedTesting)
+print(testingPredictions)
+```
+## File Handling for Submission
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(as.character(testingPredictions))
 ```
 
-You can also embed plots, for example:
-
-```{r, echo=FALSE}
-plot(cars)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Results
+We obtained 100% **in sample accuracy** on our training set which was expected.
+98.69% **cross-validation accuracy** was recorded on our validation set.
+Finally, 100% accuracy was obtained on our **test set** as per the online coursera assignment submission.

@@ -11,7 +11,7 @@
 
 <meta name="author" content="Vaibhav Malpani" />
 
-<meta name="date" content="2014-06-22" />
+<meta name="date" content="2014-06-20" />
 
 <title>Practical Machine Learning - Prediction Assignment Writeup</title>
 
@@ -56,14 +56,13 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 <div id="header">
 <h1 class="title">Practical Machine Learning - Prediction Assignment Writeup</h1>
 <h4 class="author"><em>Vaibhav Malpani</em></h4>
-<h4 class="date"><em>June 22, 2014</em></h4>
+<h4 class="date"><em>June 20, 2014</em></h4>
 </div>
 
 
 <div id="introduction" class="section level2">
 <h2>Introduction</h2>
-<p>This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <a href="http://rmarkdown.rstudio.com">http://rmarkdown.rstudio.com</a>.</p>
-<p>When you click the <strong>Knit</strong> button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:</p>
+<p>One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, we use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The goal of your project is to predict the manner in which they did the exercise. We use a random forest model to predict 20 different test cases.</p>
 </div>
 <div id="basic-setup" class="section level2">
 <h2>Basic Setup</h2>
@@ -84,14 +83,14 @@ validation_set &lt;- training_data[-train_idx,]</code></pre>
 </div>
 <div id="preprocessing" class="section level2">
 <h2>Preprocessing</h2>
-<p>Eliminate columns with near zero variance and keep only those columns with numeric values</p>
+<p>If the frequency ratio is less than a pre-specified threshold and the unique value percentage is less than a threshold, we consider a predictor to be near zero-variance. Eliminate columns with near zero variance and keep only those columns with numeric values.</p>
 <pre class="r"><code>nzv_cols &lt;- nearZeroVar(training_set)
 training_set &lt;- training_set[-nzv_cols]
 validation_set &lt;- validation_set[-nzv_cols]
 testing_set &lt;- testing_data[-nzv_cols]
 
 numeric_cols &lt;- which(lapply(training_set,class) %in% c('numeric'))</code></pre>
-<p>Fill in missing values using <strong>knnImpute</strong> and generate our preprocessing model. We simply replace ’NA’s with 0.</p>
+<p>Fill in missing values using <strong>knnImpute</strong>. K nearest neighbors are found in the training set and the value for the predictor is imputed using these values. This generates our preprocessing model. Also, we simply replace ‘NA’ with 0.</p>
 <pre class="r"><code>preProcessingModel &lt;- preProcess(training_set[,numeric_cols], method=c('knnImpute'))
 
 preProcessedTraining &lt;- cbind(training_set$classe, predict(preProcessingModel,training_set[,numeric_cols]))
@@ -107,29 +106,28 @@ preProcessedTesting[is.na(preProcessedTesting)] &lt;- 0</code></pre>
 </div>
 <div id="training" class="section level2">
 <h2>Training</h2>
-<p>Train a random forest model. Different parameters were tried and tested and the optimal ones were selected.</p>
+<p>Different algorithms were tried but finally we fixed upon training a random forest model.</p>
 <pre class="r"><code>randomForestModel &lt;- randomForest(classe~., preProcessedTraining)</code></pre>
 </div>
 <div id="predictions" class="section level2">
 <h2>Predictions</h2>
-<p><strong>In Sample Accuracy</strong></p>
+<p><strong>In Sample Accuracy</strong>: Predicting and comparing training set class labels</p>
 <pre class="r"><code>trainingPredictions &lt;- predict(randomForestModel, preProcessedTraining)
 print(mean(trainingPredictions == preProcessedTraining$classe))</code></pre>
 <pre><code>## [1] 1</code></pre>
-<p><strong>Out of Sample Accuracy</strong></p>
+<p><strong>Out of Sample Accuracy</strong>: Predicting and comparing validation set class labels</p>
 <pre class="r"><code>validationPredictions &lt;- predict(randomForestModel, preProcessedValidation)
 print(mean(validationPredictions == preProcessedValidation$classe))</code></pre>
 <pre><code>## [1] 0.9869</code></pre>
 <p><strong>Test Set Predictions</strong></p>
 <pre class="r"><code>testingPredictions &lt;- predict(randomForestModel, preProcessedTesting)
-
 print(testingPredictions)</code></pre>
 <pre><code>##  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 
 ##  B  A  B  A  A  E  D  B  A  A  B  C  B  A  E  E  A  B  B  B 
 ## Levels: A B C D E</code></pre>
 </div>
-<div id="file-handling" class="section level2">
-<h2>File Handling</h2>
+<div id="file-handling-for-submission" class="section level2">
+<h2>File Handling for Submission</h2>
 <pre class="r"><code>pml_write_files = function(x){
   n = length(x)
   for(i in 1:n){
